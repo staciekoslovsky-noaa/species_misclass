@@ -187,9 +187,9 @@ data_qaqc_pos_species <- data %>% # should be 0 records
   summarise(num_pos_species = n_distinct(detection_type)) %>%
   filter(num_pos_species > 1)
 
-data_qaqc_pos_age_class <- data %>% # should be 0 records
+data_qaqc_pos_age_class <- data %>% # should be 0 records -- no different positive age class assignments, even of the species are different
   filter(age_class_confidence == "positive") %>%
-  group_by(processed_detection_id, detection_type) %>%
+  group_by(processed_detection_id) %>%
   summarise(num_pos_age_class = n_distinct(age_class)) %>%
   filter(num_pos_age_class > 1)
 
@@ -275,6 +275,32 @@ RPostgreSQL::dbWriteTable(
   append = TRUE,
   row.names = FALSE
 )
+# Add original assignments to compiled species misclass data -----------------
+original <- RPostgreSQL::dbGetQuery(
+  con,
+  "SELECT processed_detection_id, detection_type as original_detection_type, species_confidence as original_species_confidence, 
+  age_class as original_age_class, age_class_confidence as original_age_class_confidence 
+  FROM surv_ice_seals_2025.tbl_detections_processed_rgb"
+)
+data <- data %>%
+  inner_join(
+    original,
+    by = "processed_detection_id"
+  )
+
+sanity_check <- data %>%
+  select(
+    reviewer,
+    processed_detection_id,
+    detection_type,
+    original_detection_type,
+    species_confidence,
+    original_species_confidence,
+    age_class,
+    original_age_class,
+    age_class_confidence,
+    original_age_class_confidence
+  )
 
 # Format data for species_misclass analysis -------------------------
 
@@ -317,6 +343,8 @@ data_coded <- data %>%
     ),
     sp_id_conf = "x",
     age_class_conf = "x",
+    original_sp_id_conf = "x",
+    original_age_class_conf = "x",
     side = ifelse(
       grepl("_C_", image_name),
       1,
@@ -358,11 +386,11 @@ data_coded <- data %>%
       detection_type == "spotted_seal",
       ifelse(
         species_confidence == "positive",
-        "sp1",
+        "sd1",
         ifelse(
           species_confidence == "likely",
-          "sp2",
-          ifelse(species_confidence == "guess", "sp3", "sp?")
+          "sd2",
+          ifelse(species_confidence == "guess", "sd3", "sd?")
         )
       ),
       sp_id_conf
@@ -416,7 +444,110 @@ data_coded <- data %>%
       age_class_conf
     )
   ) %>%
-  mutate(age_class_conf = ifelse(is.na(age_class), "unk", age_class_conf)) %>%
+  mutate(
+    original_sp_id_conf = ifelse(
+      original_detection_type == "ringed_seal",
+      ifelse(
+        original_species_confidence == "positive",
+        "rd1",
+        ifelse(
+          original_species_confidence == "likely",
+          "rd2",
+          ifelse(original_species_confidence == "guess", "rd3", "rd?")
+        )
+      ),
+      original_sp_id_conf
+    )
+  ) %>%
+  mutate(
+    original_sp_id_conf = ifelse(
+      original_detection_type == "bearded_seal",
+      ifelse(
+        original_species_confidence == "positive",
+        "bd1",
+        ifelse(
+          original_species_confidence == "likely",
+          "bd2",
+          ifelse(original_species_confidence == "guess", "bd3", "bd?")
+        )
+      ),
+      original_sp_id_conf
+    )
+  ) %>%
+  mutate(
+    original_sp_id_conf = ifelse(
+      original_detection_type == "spotted_seal",
+      ifelse(
+        original_species_confidence == "positive",
+        "sd1",
+        ifelse(
+          original_species_confidence == "likely",
+          "sd2",
+          ifelse(original_species_confidence == "guess", "sd3", "sd?")
+        )
+      ),
+      original_sp_id_conf
+    )
+  ) %>%
+  mutate(
+    original_sp_id_conf = ifelse(
+      original_detection_type == "ribbon_seal",
+      ifelse(
+        original_species_confidence == "positive",
+        "rn1",
+        ifelse(
+          original_species_confidence == "likely",
+          "rn2",
+          ifelse(original_species_confidence == "guess", "rn3", "rn?")
+        )
+      ),
+      original_sp_id_conf
+    )
+  ) %>%
+  mutate(
+    original_sp_id_conf = ifelse(
+      original_detection_type == "unknown_seal",
+      "unk",
+      original_sp_id_conf
+    )
+  ) %>%
+  mutate(
+    original_age_class_conf = ifelse(
+      original_age_class == "nonpup",
+      ifelse(
+        original_age_class_confidence == "positive",
+        "a1",
+        ifelse(
+          original_age_class_confidence == "likely",
+          "a2",
+          ifelse(original_age_class_confidence == "guess", "a3", "a?")
+        )
+      ),
+      original_age_class_conf
+    )
+  ) %>%
+  mutate(
+    original_age_class_conf = ifelse(
+      original_age_class == "pup",
+      ifelse(
+        original_age_class_confidence == "positive",
+        "p1",
+        ifelse(
+          original_age_class_confidence == "likely",
+          "p2",
+          ifelse(original_age_class_confidence == "guess", "p3", "p?")
+        )
+      ),
+      original_age_class_conf
+    )
+  ) %>%
+  mutate(
+    original_age_class_conf = ifelse(
+      is.na(original_age_class),
+      "unk",
+      original_age_class_conf
+    )
+  ) %>%
   select(
     processed_detection_id,
     hotspot_number,
@@ -426,7 +557,9 @@ data_coded <- data %>%
     side,
     alt_ft,
     sp_id_conf,
-    age_class_conf
+    age_class_conf,
+    original_sp_id_conf,
+    original_age_class_conf
   )
 
 
@@ -493,12 +626,12 @@ export <- data_coded %>%
 
 write.csv(
   export,
-  "C:\\Users\\Stacie.Hardy\\Work\\SMK\\Projects\\AS_IceSeals2025\\SpeciesMisclass/IceSeals2025_CompiledSpeciesID_20260715.csv",
+  "C:\\Users\\Stacie.Hardy\\Work\\SMK\\Projects\\AS_IceSeals2025\\SpeciesMisclass/IceSeals2025_CompiledSpeciesID_20260729.csv",
   row.names = FALSE
 )
 write.csv(
   codes,
-  "C:\\Users\\Stacie.Hardy\\Work\\SMK\\Projects\\AS_IceSeals2025\\SpeciesMisclass/IceSeals2025_CompiledSpeciesID_CodeKey_20260715.csv",
+  "C:\\Users\\Stacie.Hardy\\Work\\SMK\\Projects\\AS_IceSeals2025\\SpeciesMisclass/IceSeals2025_CompiledSpeciesID_CodeKey_20260729.csv",
   row.names = FALSE
 )
 
