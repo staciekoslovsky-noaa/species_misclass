@@ -621,7 +621,9 @@ export <- data_coded %>%
     side,
     alt_ft,
     sp_id_conf,
-    age_class_conf
+    age_class_conf,
+    original_sp_id_conf,
+    original_age_class_conf
   )
 
 write.csv(
